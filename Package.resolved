@@ -1,0 +1,25 @@
+{
+  "object": {
+    "pins": [
+      {
+        "package": "BigInt",
+        "repositoryURL": "https://github.com/attaswift/BigInt.git",
+        "state": {
+          "branch": null,
+          "revision": "108801d539eb014469c758bc0d7f734690791fb4",
+          "version": "4.0.0"
+        }
+      },
+      {
+        "package": "BitcodeFormat",
+        "repositoryURL": "https://github.com/omochi/BitcodeFormat.git",
+        "state": {
+          "branch": null,
+          "revision": "3d9793ab8b3312b2fcc90032f2121876df613c7b",
+          "version": "1.1.0"
+        }
+      }
+    ]
+  },
+  "version": 1
+}
