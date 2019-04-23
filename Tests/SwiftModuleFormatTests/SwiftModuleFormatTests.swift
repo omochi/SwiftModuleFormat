@@ -6,7 +6,7 @@ final class SwiftModuleFormatTests: XCTestCase {
     func test1() throws {
         let file = try SwiftModuleFormat.Resources.findResourceDirectory()
             .appendingPathComponent("Test")
-            .appendingPathComponent("xcbox.swiftmodule")
+            .appendingPathComponent("XCBoxApp.swiftmodule")
         let module = try Module(file: file)
         dump(module)
     }

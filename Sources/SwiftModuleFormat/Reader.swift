@@ -2,7 +2,8 @@ import Foundation
 import BitcodeFormat
 
 public final class Reader {
-    private typealias BFBlock = BitcodeFormat.Block
+    internal typealias BFBlock = BitcodeFormat.Block
+    internal typealias BFReader = BitcodeFormat.Reader
     
     public struct Error : ErrorBase {
         public var message: String
@@ -30,11 +31,14 @@ public final class Reader {
     private var module: Module!
     private var isControlBlockRead: Bool = false
     private var path: [String] = []
+    private var moduleDocument: Document!
+    private var declAndTypesBlock: BFBlock!
     
     public func read() throws -> Module {
         self.module = Module()
         
         let bcDoc = try BitcodeFormat.Document(file: file)
+        self.moduleDocument = bcDoc
         
         guard bcDoc.magicNumber == moduleMagicNumber else {
             let str = String(format: "0x%08x", bcDoc.magicNumber)
@@ -44,6 +48,8 @@ public final class Reader {
         guard let moduleBlock = (bcDoc.blocks.first { $0.id == Block.ID.MODULE.rawValue }) else {
             throw error("no MODULE_BLOCK block")
         }
+        
+        var indexBlock: BFBlock!
         
         for block in moduleBlock.blocks {
             guard let blockID = Block.ID(rawValue: block.id) else {
@@ -57,58 +63,31 @@ public final class Reader {
             }
             
             switch blockID {
+            case .MODULE:
+                break
             case .CONTROL:
                 try readControlBlock(block)
                 isControlBlockRead = true
             case .INPUT:
+                try readInputBlock(block)
+            case .DECLS_AND_TYPES:
+                self.declAndTypesBlock = block
+                break
+            case .IDENTIFIER_DATA:
                 for record in block.records {
-                    guard let code = Block.INPUT.Code(rawValue: record.code) else {
+                    guard let code = Block.IDENTIFIER_DATA.Code(rawValue: record.code) else {
                         continue
                     }
                     push(scope: "\(code)")
                     defer { popScope() }
                     switch code {
-                    case .IMPORTED_MODULE:
-                        let r = try decode(Block.INPUT.ImportedModuleRecord.self, from: record)
-                        module.imports.append(r.asImportEntry())
-                    case .LINK_LIBRARY:
-                        let r = try decode(LinkLibrary.self, from: record)
-                        module.linkLibraries.append(r)
-                        break
-                    case .IMPORTED_HEADER:
-                        let r = try decode(Block.INPUT.ImportedHeaderRecord.self, from: record)
-                        module.imports.append(r.asImportEntry())
-                        break
-                    case .IMPORTED_HEADER_CONTENTS:
-                        guard var last = module.imports.last,
-                            case .header(var header) = last.entry else
-                        {
-                            throw error("must follow IMPORTED_HEADER")
-                        }
-                        header.content = try blob(of: record)
-                        last.entry = .header(header)
-                        module.imports[module.imports.count - 1] = last                        
-                        break
-                    case .MODULE_FLAGS:
-                        break
-                    case .SEARCH_PATH:
-                        let r = try decode(SearchPath.self, from: record)
-                        module.searchPaths.append(r)
-                        break
-                    case .FILE_DEPENDENCY:
-                        break
-                    case .PARSEABLE_INTERFACE_PATH:
-                        module.parseableInterface = try blobString(of: record)
-                        break
+                    case .IDENTIFIER_DATA:
+                        module.identifierData = try blob(of: record)
                     }
                 }
-            case .MODULE:
-                break
-            case .DECLS_AND_TYPES:
-                break
-            case .IDENTIFIER_DATA:
                 break
             case .INDEX:
+                indexBlock = block
                 break
             case .SIL:
                 break
@@ -123,7 +102,17 @@ public final class Reader {
             case .DECL_MEMBER_TABLES:
                 break
             }
-            
+        }
+        
+        if declAndTypesBlock == nil {
+            throw error("no DECL_AND_TYPES_BLOCK")
+        }
+        if indexBlock == nil {
+            throw error("no INDEX_BLOCK")
+        }
+        
+        try scope("INDEX_BLOCK") {
+            try readIndexBlock(indexBlock)
         }
         
         return self.module!
@@ -224,6 +213,126 @@ public final class Reader {
         }
     }
     
+    private func readInputBlock(_ block: BFBlock) throws {
+        for record in block.records {
+            guard let code = Block.INPUT.Code(rawValue: record.code) else {
+                continue
+            }
+            push(scope: "\(code)")
+            defer { popScope() }
+            switch code {
+            case .IMPORTED_MODULE:
+                let r = try decode(Block.INPUT.ImportedModuleRecord.self, from: record)
+                module.imports.append(r.asImportEntry())
+            case .LINK_LIBRARY:
+                let r = try decode(LinkLibrary.self, from: record)
+                module.linkLibraries.append(r)
+                break
+            case .IMPORTED_HEADER:
+                let r = try decode(Block.INPUT.ImportedHeaderRecord.self, from: record)
+                module.imports.append(r.asImportEntry())
+                break
+            case .IMPORTED_HEADER_CONTENTS:
+                guard var last = module.imports.last,
+                    case .header(var header) = last.entry else
+                {
+                    throw error("must follow IMPORTED_HEADER")
+                }
+                header.content = try blob(of: record)
+                last.entry = .header(header)
+                module.imports[module.imports.count - 1] = last
+                break
+            case .MODULE_FLAGS:
+                break
+            case .SEARCH_PATH:
+                let r = try decode(SearchPath.self, from: record)
+                module.searchPaths.append(r)
+                break
+            case .FILE_DEPENDENCY:
+                break
+            case .PARSEABLE_INTERFACE_PATH:
+                module.parseableInterface = try blobString(of: record)
+                break
+            }
+        }
+    }
+    
+    private func readIndexBlock(_ block: BFBlock) throws {
+        for record in block.records {
+            guard let code = Block.INDEX.Code(rawValue: record.code) else {
+                continue
+            }
+            push(scope: "\(code)")
+            defer { popScope() }
+            switch code {
+            case .TYPE_OFFSETS:
+                break
+            case .DECL_OFFSETS:
+                if record.values.count < 1 {
+                    throw error("no value")
+                }
+                let array = try self.array(of: record.values[0])
+                
+                for value in array {
+                    let bitOffset = try self.value(of: value)
+                    
+                    let position = BFReader.Position(offset: bitOffset / 8,
+                                                     bitOffset: UInt8(bitOffset % 8))
+                    let reader = try BFReader(blockInfos: moduleDocument.blockInfos,
+                                              block: declAndTypesBlock,
+                                              position: position)
+                    let x = try reader.readAbbreviation()
+                    dump(x)
+                }
+                
+                
+                break
+            case .IDENTIFIER_OFFSETS:
+                break
+            case .TOP_LEVEL_DECLS:
+                break
+            case .OPERATORS:
+                break
+            case .EXTENSIONS:
+                break
+            case .CLASS_MEMBERS_FOR_DYNAMIC_LOOKUP:
+                break
+            case .OPERATOR_METHODS:
+                break
+            case .OBJC_METHODS:
+                break
+            case .ENTRY_POINT:
+                break
+            case .LOCAL_DECL_CONTEXT_OFFSETS:
+                break
+            case .DECL_CONTEXT_OFFSETS:
+                break
+            case .LOCAL_TYPE_DECLS:
+                break
+            case .OPAQUE_RETURN_TYPE_DECLS:
+                break
+            case .GENERIC_ENVIRONMENT_OFFSETS:
+                break
+            case .NORMAL_CONFORMANCE_OFFSETS:
+                break
+            case .SIL_LAYOUT_OFFSETS:
+                break
+            case .PRECEDENCE_GROUPS:
+                break
+            case .NESTED_TYPE_DECLS:
+                break
+            case .DECL_MEMBER_NAMES:
+                break
+            case .ORDERED_TOP_LEVEL_DECLS:
+                break
+            case .GENERIC_SIGNATURE_OFFSETS:
+                break
+            case .SUBSTITUTION_MAP_OFFSETS:
+                break
+            }
+        }
+    }
+    
     private func decode<T: DecodableFromRecord>(_ type: T.Type, from record: Record) throws -> T {
         do {
             let decoder = RecordDecoder(record: record)
@@ -252,7 +361,14 @@ public final class Reader {
     
     private func value(of value: Record.Value) throws -> UInt64 {
         guard let value = value.value else {
-            throw error("no value data")
+            throw error("not value data")
+        }
+        return value
+    }
+    
+    private func array(of value: Record.Value) throws -> [Record.Value] {
+        guard let value = value.array else {
+            throw error("not array data")
         }
         return value
     }
@@ -265,7 +381,7 @@ public final class Reader {
     
     private func blob(of record: Record) throws -> Data {
         guard let blob = record.blob else {
-            throw error("no blob data")
+            throw error("not blob data")
         }
         return blob
     }

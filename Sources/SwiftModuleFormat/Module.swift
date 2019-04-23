@@ -32,6 +32,9 @@ public final class Module : CopyInitializable {
     public var searchPaths: [SearchPath] = []
     public var parseableInterface: String?
     
+    // IDENTIFIER_DATA
+    public var identifierData: Data = Data()
+    
     public init() {
         self.moduleVersion = Version(major: 0, minor: 0)
     }

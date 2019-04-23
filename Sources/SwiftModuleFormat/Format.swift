@@ -109,5 +109,44 @@ public enum Block {
             }
         }
     }
+    
+    public enum IDENTIFIER_DATA {
+        public enum Code : UInt32 {
+            case IDENTIFIER_DATA = 1
+        }
+    }
+    
+    public enum INDEX {
+        public enum Code : UInt32 {
+            case TYPE_OFFSETS = 1
+            case DECL_OFFSETS
+            case IDENTIFIER_OFFSETS
+            case TOP_LEVEL_DECLS
+            case OPERATORS
+            case EXTENSIONS
+            case CLASS_MEMBERS_FOR_DYNAMIC_LOOKUP
+            case OPERATOR_METHODS
+
+            case OBJC_METHODS
+
+            case ENTRY_POINT
+            case LOCAL_DECL_CONTEXT_OFFSETS
+            case DECL_CONTEXT_OFFSETS
+            case LOCAL_TYPE_DECLS
+            case OPAQUE_RETURN_TYPE_DECLS
+            case GENERIC_ENVIRONMENT_OFFSETS
+            case NORMAL_CONFORMANCE_OFFSETS
+            case SIL_LAYOUT_OFFSETS
+
+            case PRECEDENCE_GROUPS
+            case NESTED_TYPE_DECLS
+            case DECL_MEMBER_NAMES
+            
+            case ORDERED_TOP_LEVEL_DECLS
+            
+            case GENERIC_SIGNATURE_OFFSETS
+            case SUBSTITUTION_MAP_OFFSETS
+        }
+    }
 }
 
