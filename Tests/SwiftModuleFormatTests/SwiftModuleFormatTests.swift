@@ -8,6 +8,6 @@ final class SwiftModuleFormatTests: XCTestCase {
             .appendingPathComponent("Test")
             .appendingPathComponent("xcbox.swiftmodule")
         let module = try Module(file: file)
-        
+        dump(module)
     }
 }
