@@ -28,7 +28,7 @@ public final class Reader {
     }
     
     private var module: Module!
-    private var moduleBlock: BFBlock!
+    private var isControlBlockRead: Bool = false
     private var path: [String] = []
     
     public func read() throws -> Module {
@@ -44,15 +44,95 @@ public final class Reader {
         guard let moduleBlock = (bcDoc.blocks.first { $0.id == Block.ID.MODULE.rawValue }) else {
             throw error("no MODULE_BLOCK block")
         }
-        self.moduleBlock = moduleBlock
         
-       
-        guard let controlBlock = (moduleBlock.blocks.first { $0.id == Block.ID.CONTROL.rawValue }) else {
-            throw error("no CONTROL_BLOCK block")
+        for block in moduleBlock.blocks {
+            guard let blockID = Block.ID(rawValue: block.id) else {
+                continue
+            }
+            push(scope: "\(blockID)")
+            defer { popScope() }
+            
+            if blockID != .CONTROL {
+                try assertControlBlockRead()
+            }
+            
+            switch blockID {
+            case .CONTROL:
+                try readControlBlock(block)
+                isControlBlockRead = true
+            case .INPUT:
+                for record in block.records {
+                    guard let code = Block.INPUT.Code(rawValue: record.code) else {
+                        continue
+                    }
+                    push(scope: "\(code)")
+                    defer { popScope() }
+                    switch code {
+                    case .IMPORTED_MODULE:
+                        let r = try decode(Block.INPUT.ImportedModuleRecord.self, from: record)
+                        module.imports.append(r.asImportEntry())
+                    case .LINK_LIBRARY:
+                        let r = try decode(LinkLibrary.self, from: record)
+                        module.linkLibraries.append(r)
+                        break
+                    case .IMPORTED_HEADER:
+                        let r = try decode(Block.INPUT.ImportedHeaderRecord.self, from: record)
+                        module.imports.append(r.asImportEntry())
+                        break
+                    case .IMPORTED_HEADER_CONTENTS:
+                        guard var last = module.imports.last,
+                            case .header(var header) = last.entry else
+                        {
+                            throw error("must follow IMPORTED_HEADER")
+                        }
+                        header.content = try blob(of: record)
+                        last.entry = .header(header)
+                        module.imports[module.imports.count - 1] = last                        
+                        break
+                    case .MODULE_FLAGS:
+                        break
+                    case .SEARCH_PATH:
+                        let r = try decode(SearchPath.self, from: record)
+                        module.searchPaths.append(r)
+                        break
+                    case .FILE_DEPENDENCY:
+                        break
+                    case .PARSEABLE_INTERFACE_PATH:
+                        module.parseableInterface = try blobString(of: record)
+                        break
+                    }
+                }
+            case .MODULE:
+                break
+            case .DECLS_AND_TYPES:
+                break
+            case .IDENTIFIER_DATA:
+                break
+            case .INDEX:
+                break
+            case .SIL:
+                break
+            case .SIL_INDEX:
+                break
+            case .OPTIONS:
+                break
+            case .MODULE_DOC:
+                break
+            case .COMMENT:
+                break
+            case .DECL_MEMBER_TABLES:
+                break
+            }
+            
         }
-        try readControlBlock(controlBlock)
         
         return self.module!
+    }
+    
+    private func assertControlBlockRead() throws {
+        guard isControlBlockRead else {
+            throw error("CONTROL_BLOCK not read")
+        }
     }
     
     private func readControlBlock(_ block: BFBlock) throws {

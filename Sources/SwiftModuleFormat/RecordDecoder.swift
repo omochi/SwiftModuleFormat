@@ -52,6 +52,34 @@ public final class RecordDecoder {
         }
         return en
     }
+    
+    public func decodeString() throws -> String {
+        let blob = try decodeBlob()
+        return try _decodeString(data: blob)
+    }
+    
+    public func decodeNullSeparatedStrings() throws -> [String] {
+        let blob = try decodeBlob()
+        let datas = blob.split(separator: 0)
+        let strs = try datas.map { (data) -> String in
+            try _decodeString(data: data)
+        }
+        return strs
+    }
+    
+    private func _decodeString(data: Data) throws -> String {
+        guard let s = String(data: data, encoding: .utf8) else {
+            throw error("UTF-8 decode failed")
+        }
+        return s
+    }
+    
+    private func decodeBlob() throws -> Data {
+        guard let blob = record.blob else {
+            throw error("no blob")
+        }
+        return blob
+    }
         
     private func decodeValue() throws -> BitcodeFormat.Record.Value {
         guard index < record.values.count else {
