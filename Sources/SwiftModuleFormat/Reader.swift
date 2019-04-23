@@ -32,7 +32,7 @@ public final class Reader {
     private var isControlBlockRead: Bool = false
     private var path: [String] = []
     private var moduleDocument: Document!
-    private var declAndTypesBlock: BFBlock!
+    private var declAndTypesReader: BFReader!
     
     public func read() throws -> Module {
         self.module = Module()
@@ -71,7 +71,7 @@ public final class Reader {
             case .INPUT:
                 try readInputBlock(block)
             case .DECLS_AND_TYPES:
-                self.declAndTypesBlock = block
+                self.declAndTypesReader = try BFReader(block: block)
                 break
             case .IDENTIFIER_DATA:
                 for record in block.records {
@@ -104,7 +104,7 @@ public final class Reader {
             }
         }
         
-        if declAndTypesBlock == nil {
+        if declAndTypesReader == nil {
             throw error("no DECL_AND_TYPES_BLOCK")
         }
         if indexBlock == nil {
@@ -276,15 +276,11 @@ public final class Reader {
                 for value in array {
                     let bitOffset = try self.value(of: value)
                     
-                    let position = BFReader.Position(offset: bitOffset / 8,
-                                                     bitOffset: UInt8(bitOffset % 8))
-                    let reader = try BFReader(blockInfos: moduleDocument.blockInfos,
-                                              block: declAndTypesBlock,
-                                              position: position)
+                    let reader = declAndTypesReader!
+                    reader.position = BFReader.Position(bitOffset: bitOffset)
                     let x = try reader.readAbbreviation()
                     dump(x)
                 }
-                
                 
                 break
             case .IDENTIFIER_OFFSETS:
