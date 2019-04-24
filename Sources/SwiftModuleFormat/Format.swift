@@ -38,22 +38,6 @@ public enum Block {
             case RESILIENCE_STRATEGY
             case ARE_PRIVATE_IMPORTS_ENABLED
         }
-        
-        public struct IsSibRecord : DecodableFromRecord {
-            public var isSib: Bool
-            
-            public init(decoder: RecordDecoder) throws {
-                self.isSib = try decoder.decodeBool()
-            }
-        }
-        
-        public struct ResilienceStrategyRecord : DecodableFromRecord {
-            public var strategy: ResilienceStrategy
-            
-            public init(decoder: RecordDecoder) throws {
-                self.strategy = try decoder.decodeIntEnum(ResilienceStrategy.self)
-            }
-        }
     }
     
     public enum INPUT {
@@ -66,47 +50,6 @@ public enum Block {
             case SEARCH_PATH
             case FILE_DEPENDENCY
             case PARSEABLE_INTERFACE_PATH
-        }
-        
-        public struct ImportedModuleRecord : DecodableFromRecord {
-            public var control: Import.Control
-            public var isScoped: Bool
-            public var path: [String]
-            
-            public init(decoder: RecordDecoder) throws {
-                self.control = try decoder.decodeIntEnum(Import.Control.self)
-                self.isScoped = try decoder.decodeBool()
-                self.path = try decoder.decodeNullSeparatedStrings()
-            }
-            
-            public func asImportEntry() -> Import {
-                let module = Import.Module(isScoped: isScoped, path: path)
-                return Import(control: control,
-                              entry: .module(module))
-            }
-        }
-        
-        public struct ImportedHeaderRecord : DecodableFromRecord {
-            public var isExported: Bool
-            public var fileSize: UInt64
-            public var fileModTime: UInt64
-            public var path: String
-            
-            public init(decoder: RecordDecoder) throws {
-                self.isExported = try decoder.decodeBool()
-                self.fileSize = try decoder.decodeUInt64()
-                self.fileModTime = try decoder.decodeUInt64()
-                self.path = try decoder.decodeString()
-            }
-            
-            public func asImportEntry() -> Import {
-                let header = Import.Header(size: fileSize,
-                                                modTime: fileModTime,
-                                                path: path,
-                                                content: Data())
-                return Import(control: isExported ? .exported : .normal,
-                              entry: .header(header))
-            }
         }
     }
     
@@ -150,3 +93,86 @@ public enum Block {
     }
 }
 
+public struct IsSibRecord : DecodableFromRecord {
+    public var isSib: Bool
+    
+    public init(decoder: RecordDecoder) throws {
+        self.isSib = try decoder.decodeBool()
+    }
+}
+
+public struct ResilienceStrategyRecord : DecodableFromRecord {
+    public var strategy: ResilienceStrategy
+    
+    public init(decoder: RecordDecoder) throws {
+        self.strategy = try decoder.decodeIntEnum(ResilienceStrategy.self)
+    }
+}
+
+public struct ImportedModuleRecord : DecodableFromRecord {
+    public var control: Import.Control
+    public var isScoped: Bool
+    public var path: [String]
+    
+    public init(decoder: RecordDecoder) throws {
+        self.control = try decoder.decodeIntEnum(Import.Control.self)
+        self.isScoped = try decoder.decodeBool()
+        self.path = try decoder.decodeNullSeparatedStrings()
+    }
+    
+    public func asImportEntry() -> Import {
+        let module = Import.Module(isScoped: isScoped, path: path)
+        return Import(control: control,
+                      entry: .module(module))
+    }
+}
+
+public struct ImportedHeaderRecord : DecodableFromRecord {
+    public var isExported: Bool
+    public var fileSize: UInt64
+    public var fileModTime: UInt64
+    public var path: String
+    
+    public init(decoder: RecordDecoder) throws {
+        self.isExported = try decoder.decodeBool()
+        self.fileSize = try decoder.decodeUInt64()
+        self.fileModTime = try decoder.decodeUInt64()
+        self.path = try decoder.decodeString()
+    }
+    
+    public func asImportEntry() -> Import {
+        let header = Import.Header(size: fileSize,
+                                   modTime: fileModTime,
+                                   path: path,
+                                   content: Data())
+        return Import(control: isExported ? .exported : .normal,
+                      entry: .header(header))
+    }
+}
+
+public struct ClassRecord : DecodableFromRecord {
+    public var nameID: Int
+    public var contextID: Int
+    public var isImplicit: Bool
+    public var isObjC: Bool
+    public var requiresStoredPropertyInits: Bool
+    public var inheritsSuperclassInitializers: Bool
+    public var genericEnvID: Int
+    public var superclassID: Int
+    public var rawAccessLevel: UInt8
+    public var numConformances: Int
+    public var rawInheritedIDs: [Int]
+    public init(decoder d: RecordDecoder) throws {
+        nameID = try d.decodeInt()
+        contextID = try d.decodeInt()
+        isImplicit = try d.decodeBool()
+        isObjC = try d.decodeBool()
+        requiresStoredPropertyInits = try d.decodeBool()
+        inheritsSuperclassInitializers = try d.decodeBool()
+        genericEnvID = try d.decodeInt()
+        superclassID = try d.decodeInt()
+        rawAccessLevel = try d.decodeUInt8()
+        numConformances = try d.decodeInt()
+        rawInheritedIDs = try d.decodeArray { (d) in try d.decodeInt() }
+    }
+}

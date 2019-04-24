@@ -6,6 +6,11 @@ public final class DeclReader {
         public var description: String
     }
     
+    public struct Result {
+        public var decl: Decl
+        public var linkFunction: (() throws -> Void)?
+    }
+    
     public let moduleReader: Reader
     public let reader: BitcodeFormat.Reader
     public var attrs: [DeclAttribute] = []
@@ -18,19 +23,20 @@ public final class DeclReader {
         reader.position = BitcodeFormat.Reader.Position(bitOffset: bitOffset)
     }
     
-    public func read() throws -> Decl {
+    public func read() throws -> Result {
         try readAttributes()
         
         let record = try moduleReader.record(of: reader.readAbbreviation())
         
         if let code = Decl.Code(rawValue: record.code) {
-            
             switch code {
+            case .CLASS:
+                return try readClass(record: record)
             default:
                 let decl = UnknownDecl()
-                decl.name = "\(code)"
+                decl.kind = "\(code)"
                 decl.attributes = attrs
-                return decl
+                return Result(decl: decl, linkFunction: nil)
             }
             
         }
@@ -39,9 +45,9 @@ public final class DeclReader {
             switch code {
             case .XREF:
                 let decl = UnknownDecl()
-                decl.name = "\(code)"
+                decl.kind = "\(code)"
                 decl.attributes = attrs
-                return decl
+                return Result(decl: decl, linkFunction: nil)
             default:
                 break
             }
@@ -76,6 +82,20 @@ public final class DeclReader {
             
             reader.position = position
             break
+        }
+    }
+    
+    private func readClass(record: Record) throws -> Result {
+        let r = try moduleReader.decode(ClassRecord.self, from: record)
+        
+        let d = ClassDecl()
+        d.isImplicit = r.isImplicit
+        d.isObjC = r.isObjC
+        d.requiresStoredPropertyInits = r.requiresStoredPropertyInits
+        d.inheritsSuperclassInits = r.inheritsSuperclassInitializers
+        
+        return Result(decl: d) {
+            d.name = try self.moduleReader.identifier(iid: r.nameID)
         }
     }
 }

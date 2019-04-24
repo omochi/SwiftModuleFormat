@@ -31,10 +31,7 @@ public final class Module : CopyInitializable {
     public var linkLibraries: [LinkLibrary] = []
     public var searchPaths: [SearchPath] = []
     public var parseableInterface: String?
-    
-    // IDENTIFIER_DATA
-    public var identifierData: Data = Data()
-    
+
     // INDEX
     public var decls: [Decl] = []
     
@@ -116,4 +113,14 @@ public struct SearchPath : DecodableFromRecord {
         self.isSystem = try decoder.decodeBool()
         self.path = try decoder.decodeString()
     }
+}
+
+public enum SpecialIdentifierID : UInt8 {
+    case BUILTIN_MODULE_ID = 0
+    case CURRENT_MODULE_ID
+    case OBJC_HEADER_MODULE_ID
+    case SUBSCRIPT_ID
+    case CONSTRUCTOR_ID
+    case DESTRUCTOR_ID
+    case NUM_SPECIAL_IDS
 }

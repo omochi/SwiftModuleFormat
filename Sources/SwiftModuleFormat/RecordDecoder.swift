@@ -18,11 +18,15 @@ public final class RecordDecoder {
         }
     }
     
-    public let record: BitcodeFormat.Record
+    public let values: [BitcodeFormat.Record.Value]
     public var index: Int
     
-    public init(record: BitcodeFormat.Record) {
-        self.record = record
+    public convenience init(record: BitcodeFormat.Record) {
+        self.init(values: record.values)
+    }
+    
+    public init(values: [BitcodeFormat.Record.Value]) {
+        self.values = values
         self.index = 0
     }
     
@@ -38,6 +42,10 @@ public final class RecordDecoder {
         return x
     }
     
+    public func decodeUInt8() throws -> UInt8 {
+        return try intCast(decodeUInt64())
+    }
+    
     public func decodeInt() throws -> Int {
         return try intCast(decodeUInt64())
     }
@@ -51,6 +59,20 @@ public final class RecordDecoder {
             throw error("invalid enum value: \(type), \(intValue)")
         }
         return en
+    }
+    
+    public func decodeArray<T>(
+        _ decodeElement: (RecordDecoder) throws -> T)
+        throws -> [T]
+    {
+        guard let array = values.last?.array else {
+            throw error("not array")
+        }
+        return try array.map { (item) -> T in
+            let d = RecordDecoder(values: [item])
+            let t = try decodeElement(d)
+            return t
+        }
     }
     
     public func decodeString() throws -> String {
@@ -75,18 +97,18 @@ public final class RecordDecoder {
     }
     
     private func decodeBlob() throws -> Data {
-        guard let blob = record.blob else {
-            throw error("no blob")
+        guard let blob = values.last?.blob else {
+            throw error("not blob")
         }
         return blob
     }
         
     private func decodeValue() throws -> BitcodeFormat.Record.Value {
-        guard index < record.values.count else {
+        guard index < values.count else {
             throw error("out of range")
         }
         defer { index += 1 }
-        return record.values[index]
+        return values[index]
     }
     
     public func error(_ message: String) -> Error {
