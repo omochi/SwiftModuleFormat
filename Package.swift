@@ -9,7 +9,7 @@ let package = Package(
         .library(name: "SwiftModuleFormat", targets: ["SwiftModuleFormat"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/omochi/BitcodeFormat.git", from: "1.2.1"),
+        .package(url: "https://github.com/omochi/BitcodeFormat.git", from: "1.4.0"),
     ],
     targets: [
         .target(name: "SwiftModuleFormat", dependencies: [

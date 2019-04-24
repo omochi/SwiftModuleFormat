@@ -32,7 +32,7 @@ public final class Reader {
     private var isControlBlockRead: Bool = false
     private var path: [String] = []
     private var moduleDocument: Document!
-    private var declAndTypesReader: BFReader!
+    internal var declAndTypesReader: BFReader!
     
     public func read() throws -> Module {
         self.module = Module()
@@ -273,13 +273,14 @@ public final class Reader {
                 }
                 let array = try self.array(of: record.values[0])
                 
-                for value in array {
-                    let bitOffset = try self.value(of: value)
+                for (index, value) in array.enumerated() {
+                    push(scope: "\(index)")
+                    defer { popScope() }
                     
-                    let reader = declAndTypesReader!
-                    reader.position = BFReader.Position(bitOffset: bitOffset)
-                    let x = try reader.readAbbreviation()
-                    dump(x)
+                    let bitOffset = try self.value(of: value)
+                    let declReader = DeclReader(moduleReader: self, bitOffset: bitOffset)
+                    let decl = try declReader.read()
+                    module.decls.append(decl)
                 }
                 
                 break
@@ -389,15 +390,22 @@ public final class Reader {
         return str
     }
     
-    private func emitWarning(_ message: String) {
+    internal func record(of abbrev: Abbreviation) throws -> Record {
+        guard let record = abbrev.record else {
+            throw error("not record abbreviation")
+        }
+        return record
+    }
+    
+    internal func emitWarning(_ message: String) {
         emitWarning(error(message))
     }
     
-    private func emitWarning(_ error: Error) {
+    internal func emitWarning(_ error: Error) {
         print("[WARN] \(error)")
     }
     
-    private func error(_ message: String) -> Error {
+    internal func error(_ message: String) -> Error {
         return Error(message: message,
                      path: path)
     }

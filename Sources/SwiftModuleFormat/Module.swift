@@ -35,6 +35,9 @@ public final class Module : CopyInitializable {
     // IDENTIFIER_DATA
     public var identifierData: Data = Data()
     
+    // INDEX
+    public var decls: [Decl] = []
+    
     public init() {
         self.moduleVersion = Version(major: 0, minor: 0)
     }
@@ -113,5 +116,4 @@ public struct SearchPath : DecodableFromRecord {
         self.isSystem = try decoder.decodeBool()
         self.path = try decoder.decodeString()
     }
-    
 }
